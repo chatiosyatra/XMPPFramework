@@ -264,4 +264,10 @@
 	return ([self elementForName:@"body"] != nil);
 }
 
+
+-(void)dealloc
+{
+    
+}
+
 @end

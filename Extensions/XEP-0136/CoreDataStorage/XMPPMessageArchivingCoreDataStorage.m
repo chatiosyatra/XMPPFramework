@@ -4,6 +4,7 @@
 #import "NSXMLElement+XEP_0203.h"
 #import "XMPPMessage+XEP_0085.h"
 
+
 #if ! __has_feature(objc_arc)
 #warning This file must be compiled with ARC. Use -fobjc-arc flag (or convert project to ARC).
 #endif
@@ -335,10 +336,60 @@ static XMPPMessageArchivingCoreDataStorage *sharedInstance;
 {
 	// Message should either have a body, or be a composing notification
 	
+    if (![message isMessageWithBody]) {
+        return;
+    }
+    
+    
+
+    NSString *lobid = [[[message elementForName:@"yatracustom"] elementForName:@"lobid"] stringValue];
+    NSString *customerjid = [[[message elementForName:@"yatracustom"] elementForName:@"customerjid"] stringValue];
+    NSString *vendorjid = [[[message elementForName:@"yatracustom"] elementForName:@"vendorjid"] stringValue];
+    
+    NSString *error = [[message elementForName:@"error"] stringValue] ;
+    if(error)
+    {
+        return;
+    }
+    
+    
+    NSString *path = [[NSBundle mainBundle] pathForResource:@"chat_plist" ofType:@"plist"];
+    NSMutableDictionary *dictionary = [[NSMutableDictionary alloc]initWithContentsOfFile:path];
+    
+    NSArray *lobssupported=[dictionary objectForKey:@"LOBIDs"];
+    
+    
+    
+    
+    if(![lobssupported containsObject:lobid])
+    {
+        return;
+    }
+    
+    
+    BOOL customerchatonlysupported=[[dictionary objectForKey:@"chatAsCustomer"] boolValue];
+     BOOL vendorchatonlysupported=[[dictionary objectForKey:@"chatAsVendor"] boolValue];
+    //if chat app is B2C app then messages with customer jid only are received,others are discarded
+    if (customerchatonlysupported&& !vendorchatonlysupported) {
+        if (![customerjid isEqualToString:xmppStream.myJID.bareJID.bare])
+        {
+            return;
+        }
+    }
+    
+    
 	NSString *messageBody = [[message elementForName:@"body"] stringValue];
+    NSString *chatId=[[[message elementForName:@"yatracustom"] elementForName:@"chatid"] stringValue];
+     NSString *url=[[[message elementForName:@"yatracustom"] elementForName:@"url"] stringValue];
+     NSString *contenttype=[[[message elementForName:@"yatracustom"] elementForName:@"contenttype"] stringValue];
+    NSString *msgtype=[[[message elementForName:@"yatracustom"] elementForName:@"msgtype"] stringValue];
+    NSString *msgId=[[message attributeForName:@"id"] stringValue];
 	BOOL isComposing = NO;
 	BOOL shouldDeleteComposingMessage = NO;
 	
+    
+    
+    
 	if ([messageBody length] == 0)
 	{
 		// Message doesn't have a body.
@@ -403,10 +454,26 @@ static XMPPMessageArchivingCoreDataStorage *sharedInstance;
 				
 				didCreateNewArchivedMessage = YES;
 			}
-			
+            
+//            if (archivedMessage.notSent.boolValue) {
+//                archivedMessage.notSent=[NSNumber numberWithBool:NO];
+//            }
+            if (!archivedMessage.outgoing.boolValue) {
+                archivedMessage.unread=[NSNumber numberWithBool:YES];
+            }
+            else
+            {
+                archivedMessage.unread=[NSNumber numberWithBool:NO];
+            }
+            
+            archivedMessage.msgType=msgtype;
+            archivedMessage.documentURL=url;
+            archivedMessage.documentType=contenttype;
+            archivedMessage.msgId=msgId;
+            archivedMessage.chatID=chatId;
 			archivedMessage.message = message;
 			archivedMessage.body = messageBody;
-			
+            archivedMessage.bareJidStr=[messageJid bare];
 			archivedMessage.bareJid = [messageJid bareJID];
 			archivedMessage.streamBareJidStr = [myJid bare];
 			
@@ -483,6 +550,14 @@ static XMPPMessageArchivingCoreDataStorage *sharedInstance;
 			}
 		}
 	}];
+}
+
+
+- (BOOL)isArchivedMessageFromServer:(XMPPMessage*)message
+{
+    NSXMLElement *receiptRequest = [message elementForName:@"archived" xmlns:@"urn:xmpp:mam:tmp"];
+    
+    return (receiptRequest != nil);
 }
 
 @end
