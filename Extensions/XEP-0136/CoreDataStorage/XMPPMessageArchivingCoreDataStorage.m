@@ -58,6 +58,9 @@ static XMPPMessageArchivingCoreDataStorage *sharedInstance;
 	
 	messageEntityName = @"XMPPMessageArchiving_Message_CoreDataObject";
 	contactEntityName = @"XMPPMessageArchiving_Contact_CoreDataObject";
+    
+    NSString *path = [[NSBundle mainBundle] pathForResource:@"chat_plist" ofType:@"plist"];
+    self.chatConfigDict = [[NSDictionary alloc]initWithContentsOfFile:path];
 }
 
 /**
@@ -342,39 +345,9 @@ static XMPPMessageArchivingCoreDataStorage *sharedInstance;
     
     
 
-    NSString *lobid = [[[message elementForName:@"yatracustom"] elementForName:@"lobid"] stringValue];
-    NSString *customerjid = [[[message elementForName:@"yatracustom"] elementForName:@"customerjid"] stringValue];
-    NSString *vendorjid = [[[message elementForName:@"yatracustom"] elementForName:@"vendorjid"] stringValue];
-    
-    NSString *error = [[message elementForName:@"error"] stringValue] ;
-    if(error)
+    if(![self isMessageAllowedForLOB:message])
     {
         return;
-    }
-    
-    
-    NSString *path = [[NSBundle mainBundle] pathForResource:@"chat_plist" ofType:@"plist"];
-    NSMutableDictionary *dictionary = [[NSMutableDictionary alloc]initWithContentsOfFile:path];
-    
-    NSArray *lobssupported=[dictionary objectForKey:@"LOBIDs"];
-    
-    
-    
-    
-    if(![lobssupported containsObject:lobid])
-    {
-        return;
-    }
-    
-    
-    BOOL customerchatonlysupported=[[dictionary objectForKey:@"chatAsCustomer"] boolValue];
-     BOOL vendorchatonlysupported=[[dictionary objectForKey:@"chatAsVendor"] boolValue];
-    //if chat app is B2C app then messages with customer jid only are received,others are discarded
-    if (customerchatonlysupported&& !vendorchatonlysupported) {
-        if (![customerjid isEqualToString:xmppStream.myJID.bareJID.bare])
-        {
-            return;
-        }
     }
     
     
@@ -387,7 +360,9 @@ static XMPPMessageArchivingCoreDataStorage *sharedInstance;
 	BOOL isComposing = NO;
 	BOOL shouldDeleteComposingMessage = NO;
 	
-    
+    NSString *localtime=[[[message elementForName:@"yatracustom"] elementForName:@"localtime"] stringValue];
+    NSTimeInterval time=[localtime longLongValue]/1000;
+    NSDate *messageTime=[NSDate dateWithTimeIntervalSince1970:time];
     
     
 	if ([messageBody length] == 0)
@@ -481,7 +456,7 @@ static XMPPMessageArchivingCoreDataStorage *sharedInstance;
 			if (timestamp)
 				archivedMessage.timestamp = timestamp;
 			else
-				archivedMessage.timestamp = [[NSDate alloc] init];
+                archivedMessage.timestamp = messageTime;        //[[NSDate alloc] init];
 			
 			archivedMessage.thread = [[message elementForName:@"thread"] stringValue];
 			archivedMessage.isOutgoing = isOutgoing;
@@ -559,5 +534,43 @@ static XMPPMessageArchivingCoreDataStorage *sharedInstance;
     
     return (receiptRequest != nil);
 }
+
+-(BOOL)isMessageAllowedForLOB:(XMPPMessage*)message
+{
+    NSString *lobid = [[[message elementForName:@"yatracustom"] elementForName:@"lobid"] stringValue];
+    NSString *receiverRole = [[[message elementForName:@"yatracustom"] elementForName:@"receiverrole"] stringValue];
+    
+    
+    NSArray *lobssupported=[self.chatConfigDict objectForKey:@"LOBIDs"];
+    
+    
+    
+    
+    if(![lobssupported containsObject:lobid])
+    {
+        return NO;
+    }
+    
+    
+    BOOL customerchatonlysupported=[[self.chatConfigDict objectForKey:@"chatAsCustomer"] boolValue];
+    BOOL vendorchatonlysupported=[[self.chatConfigDict objectForKey:@"chatAsVendor"] boolValue];
+    //if chat app is B2C app then messages with customer jid only are received,others are discarded
+    if (customerchatonlysupported && !vendorchatonlysupported) {
+        if([receiverRole caseInsensitiveCompare:@"UT_CUST"] != NSOrderedSame ) {
+            return NO;
+        }
+    }
+    
+    if (!customerchatonlysupported && vendorchatonlysupported) {
+        if([receiverRole caseInsensitiveCompare:@"UT_VEND"] != NSOrderedSame ) {
+            return NO;
+        }
+    }
+    
+    return YES;
+    
+    
+}
+
 
 @end
