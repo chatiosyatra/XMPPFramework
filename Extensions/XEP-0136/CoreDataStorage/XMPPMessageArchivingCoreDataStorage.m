@@ -363,7 +363,13 @@ static XMPPMessageArchivingCoreDataStorage *sharedInstance;
     NSString *localtime=[[[message elementForName:@"yatracustom"] elementForName:@"localtime"] stringValue];
     NSTimeInterval time=[localtime longLongValue]/1000;
     NSDate *messageTime=[NSDate dateWithTimeIntervalSince1970:time];
+    NSString *messageType=[[[message elementForName:@"yatracustom"] elementForName:@"msgtype"] stringValue];
     
+    
+    if([messageType isEqualToString:@"chatRequest"])
+    {
+        return;
+    }
     
 	if ([messageBody length] == 0)
 	{
