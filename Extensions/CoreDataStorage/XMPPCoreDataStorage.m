@@ -721,7 +721,7 @@ static NSMutableSet *databaseFileNames;
 			    [[NSManagedObjectContext alloc] initWithConcurrencyType:NSMainQueueConcurrencyType];
 		else
 			mainThreadManagedObjectContext = [[NSManagedObjectContext alloc] init];
-		
+		[mainThreadManagedObjectContext setMergePolicy:NSMergeByPropertyObjectTrumpMergePolicy];
 		mainThreadManagedObjectContext.persistentStoreCoordinator = coordinator;
 		mainThreadManagedObjectContext.undoManager = nil;
 		

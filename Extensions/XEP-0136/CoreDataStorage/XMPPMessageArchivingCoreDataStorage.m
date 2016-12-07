@@ -3,7 +3,7 @@
 #import "XMPPLogging.h"
 #import "NSXMLElement+XEP_0203.h"
 #import "XMPPMessage+XEP_0085.h"
-
+#import "XMPPMessage+XEP_0280.h"
 
 #if ! __has_feature(objc_arc)
 #warning This file must be compiled with ARC. Use -fobjc-arc flag (or convert project to ARC).
@@ -344,12 +344,21 @@ static XMPPMessageArchivingCoreDataStorage *sharedInstance;
     }
     
     
-
-    if(![self isMessageAllowedForLOB:message])
+    if([message isMessageCarbon])
     {
-        return;
+        if(![self isCarbonMessageAllowedForLOB:message])
+        {
+            return;
+        }
     }
-    
+    else
+    {
+        
+        if(![self isMessageAllowedForLOB:message])
+        {
+            return;
+        }
+    }
     
 	NSString *messageBody = [[message elementForName:@"body"] stringValue];
     NSString *chatId=[[[message elementForName:@"yatracustom"] elementForName:@"chatid"] stringValue];
@@ -577,6 +586,42 @@ static XMPPMessageArchivingCoreDataStorage *sharedInstance;
     
     
 }
+-(BOOL)isCarbonMessageAllowedForLOB:(XMPPMessage*)message
+{
+    NSString *lobid = [[[message elementForName:@"yatracustom"] elementForName:@"lobid"] stringValue];
+    NSString *senderRole = [[[message elementForName:@"yatracustom"] elementForName:@"senderrole"] stringValue];
+    
+    NSArray *lobssupported=[self.chatConfigDict objectForKey:@"LOBIDs"];
+    
+    
+    
+    
+    if(![lobssupported containsObject:lobid])
+    {
+        return NO;
+    }
+    
+    
+    BOOL customerchatonlysupported=[[self.chatConfigDict objectForKey:@"chatAsCustomer"] boolValue];
+    BOOL vendorchatonlysupported=[[self.chatConfigDict objectForKey:@"chatAsVendor"] boolValue];
+    //if chat app is B2C app then messages with customer jid only are received,others are discarded
+    if (customerchatonlysupported && !vendorchatonlysupported) {
+        if([senderRole caseInsensitiveCompare:@"UT_CUST"] != NSOrderedSame ) {
+            return NO;
+        }
+    }
+    
+    if (!customerchatonlysupported && vendorchatonlysupported) {
+        if([senderRole caseInsensitiveCompare:@"UT_VEND"] != NSOrderedSame ) {
+            return NO;
+        }
+    }
+    
+    return YES;
+    
+    
+}
+
 
 
 @end
